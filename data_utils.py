@@ -201,9 +201,9 @@ def compute_variable_histograms(fname, label, pretty_print_label, display=True):
       values = line[1:-1].split('"|"')
       assert len(values) == len(header_list)
 
-      render = values[header_to_position['median_timers_renderstart']].strip()
-      if not len(render) or float(render) <= 0:
-        continue
+      #render = values[header_to_position['median_timers_renderstart']].strip()
+      #if not len(render) or float(render) <= 0:
+      #  continue
 
       total_lines += 1
       for value, name in zip(values, header_list):
@@ -290,9 +290,9 @@ def subsample_and_vectorize_data(fname, label, pretty_print_label):
       values = line[1:-1].split('"|"')
       assert len(values) == len(header_to_position)
 
-      render = values[header_to_position['median_timers_renderstart']].strip()
-      if not len(render) or float(render) <= 0:
-        continue
+      #render = values[header_to_position['median_timers_renderstart']].strip()
+      #if not len(render) or float(render) <= 0:
+      #  continue
 
       keep = True
 
