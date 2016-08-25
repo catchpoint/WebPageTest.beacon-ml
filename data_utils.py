@@ -145,44 +145,43 @@ def _generate_header_dict(line):
 
 
 def check_session_uniqueness(fname):
-  f = open(fname)
-  header_to_position, _ = _generate_header_dict(f.readline())
+  with open(fname, 'rb') as f:
+    header_to_position, _ = _generate_header_dict(f.readline())
 
-  if len(header_to_position) > len(VARIABLE_TYPES_DICT):
-    not_found = []
-    for k in header_to_position:
-      if k not in VARIABLE_TYPES_DICT:
-        not_found.append(k)
-    if not_found:
-      assert False, ('Fields in header that are not defined in '
-                     'VARIABLE_TYPES_DICT: ') + str(not_found)
+    if len(header_to_position) > len(VARIABLE_TYPES_DICT):
+      not_found = []
+      for k in header_to_position:
+        if k not in VARIABLE_TYPES_DICT:
+          not_found.append(k)
+      if not_found:
+        assert False, ('Fields in header that are not defined in '
+                       'VARIABLE_TYPES_DICT: ') + str(not_found)
 
-  if len(VARIABLE_TYPES_DICT) > len(header_to_position):
-    not_found = []
-    for k in VARIABLE_TYPES_DICT:
-      if k not in header_to_position:
-        not_found.append(k)
-    if not_found:
-      assert False, ('Expected fields from VARIABLE_TYPES_DICT not found in '
-                     'header: ') + str(not_found)
+    if len(VARIABLE_TYPES_DICT) > len(header_to_position):
+      not_found = []
+      for k in VARIABLE_TYPES_DICT:
+        if k not in header_to_position:
+          not_found.append(k)
+      if not_found:
+        assert False, ('Expected fields from VARIABLE_TYPES_DICT not found in '
+                       'header: ') + str(not_found)
 
-  key_set = set()
-  sess_set = set()
-  total_lines = 0
-  for line in f:
-    line = line.strip()
-    total_lines += 1
-    if total_lines % 5000 == 1:
-      print 'Processing line: %d' % total_lines
-      sys.stdout.flush()
-    values = line[1:-1].split('"|"')
-    assert len(values) == len(header_to_position)
+    key_set = set()
+    sess_set = set()
+    total_lines = 0
+    for line in f:
+      line = line.strip()
+      total_lines += 1
+      if total_lines % 5000 == 1:
+        print 'Processing line: %d' % total_lines
+        sys.stdout.flush()
+      values = line[1:-1].split('"|"')
+      assert len(values) == len(header_to_position)
 
-    key = values[header_to_position['key']]
-    sess_id = values[header_to_position['session_id']]
-    key_set.add(key)
-    sess_set.add(sess_id)
-  f.close()
+      key = values[header_to_position['key']]
+      sess_id = values[header_to_position['session_id']]
+      key_set.add(key)
+      sess_set.add(sess_id)
 
   print 'total unique sessions:', len(sess_set)
   print 'total unique keys:', len(key_set)
@@ -191,44 +190,47 @@ def check_session_uniqueness(fname):
 
 
 def compute_variable_histograms(fname, label, pretty_print_label, display=True):
-  f = open(fname)
-  header_to_position, header_list = _generate_header_dict(f.readline())
-  histograms = dict([(name, set()) for name in VARIABLE_TYPES_DICT])
-  converted = 0
-  not_converted = 0
-  total_lines = 0
-  for line in f:
-    line = line.strip()
-    total_lines += 1
-    values = line[1:-1].split('"|"')
-    assert len(values) == len(header_list)
+  with open(fname, 'rb') as f:
+    header_to_position, header_list = _generate_header_dict(f.readline())
+    histograms = dict([(name, set()) for name in VARIABLE_TYPES_DICT])
+    converted = 0
+    not_converted = 0
+    total_lines = 0
+    for line in f:
+      line = line.strip()
+      values = line[1:-1].split('"|"')
+      assert len(values) == len(header_list)
 
-    for value, name in zip(values, header_list):
-      assert name in VARIABLE_TYPES_DICT, ('Header %s not found in '
-                                           'VARIABLE_TYPES_DICT') % name
-      vtype = VARIABLE_TYPES_DICT[name]
-      if vtype == 'C':
-        histograms[name].add(value)
-      elif vtype == 'N':
-        try:
-          value = min(MAXVAL, max(MINVAL, float(value)))
-        except:
-          if value:
-            print 'WARNING: treating feature %s with value %s as 0' % (name,
-                                                                       value)
-          value = 0
-      elif vtype == 'S':
-        pass
+      render = values[header_to_position['median_timers_renderstart']].strip()
+      if not len(render) or float(render) <= 0:
+        continue
+
+      total_lines += 1
+      for value, name in zip(values, header_list):
+        assert name in VARIABLE_TYPES_DICT, ('Header %s not found in '
+                                             'VARIABLE_TYPES_DICT') % name
+        vtype = VARIABLE_TYPES_DICT[name]
+        if vtype == 'C':
+          histograms[name].add(value)
+        elif vtype == 'N':
+          try:
+            value = min(MAXVAL, max(MINVAL, float(value)))
+          except:
+            if value:
+              print 'WARNING: treating feature %s with value %s as 0' % (name,
+                                                                         value)
+            value = 0
+        elif vtype == 'S':
+          pass
+        else:
+          raise Exception('Unknown variable type ' + vtype)
+
+      if values[header_to_position[label]] == 't':
+        converted += 1
       else:
-        raise Exception('Unknown variable type ' + vtype)
+        not_converted += 1
 
-    if values[header_to_position[label]] == 't':
-      converted += 1
-    else:
-      not_converted += 1
-  f.close()
-
-  assert converted + not_converted == total_lines
+  #assert converted + not_converted == total_lines
   ratio = float(converted) / total_lines
 
   if display:
@@ -243,21 +245,17 @@ def compute_variable_histograms(fname, label, pretty_print_label, display=True):
     print '-'
     print '%s ratio: %f' % (pretty_print_label, ratio)
 
-  return ratio, dict([(name, len(histograms[name])) for name in VARIABLE_TYPES_DICT])
+  return ratio, total_lines, dict([(name, len(histograms[name])) for name in VARIABLE_TYPES_DICT])
 
 
 def subsample_and_vectorize_data(fname, label, pretty_print_label):
-  subsample_factor, histograms = compute_variable_histograms(fname, label, pretty_print_label)
+  subsample_factor, nb_samples, histograms = compute_variable_histograms(fname, label, pretty_print_label)
 
-  nb_samples = 0
-  f = open(fname)
-  header_to_position, header_list = _generate_header_dict(f.readline())
-  for line in f:
-    nb_samples += 1
-  f.close()
+  with open(fname, 'rb') as f:
+    header_to_position, header_list = _generate_header_dict(f.readline())
 
   nb_kept_samples = int(subsample_factor * nb_samples) * 2
-  print 'will keep', nb_kept_samples, 'samples.'
+  print 'will keep {0:d} samples from {1:d} records.'.format(nb_kept_samples, nb_samples)
 
   variable_start_indices = {}
   value_indices = dict([(name, {}) for name in VARIABLE_TYPES_DICT])
@@ -276,72 +274,77 @@ def subsample_and_vectorize_data(fname, label, pretty_print_label):
       variable_start_indices[name] = line_length
       line_length += histograms[name]
       feature_names += [name] * histograms[name]
-  json.dump(feature_names, open('features_names.json', 'w'))
+  with open('features_names.json', 'wb') as f:
+    json.dump(feature_names, f)
 
   data = np.zeros((nb_kept_samples, line_length))
   print 'data.shape:', data.shape
   labels = np.zeros((nb_kept_samples,))
 
   value_ranges = [None] * line_length
-  f = open(fname)
-  header_to_position, _ = _generate_header_dict(f.readline())
-  i = 0.
-  for line in f:
-    line = line.strip()
-    values = line[1:-1].split('"|"')
-    assert len(values) == len(header_to_position)
-    keep = True
+  with open(fname, 'rb') as f:
+    header_to_position, _ = _generate_header_dict(f.readline())
+    i = 0.
+    for line in f:
+      line = line.strip()
+      values = line[1:-1].split('"|"')
+      assert len(values) == len(header_to_position)
 
-    if values[header_to_position[label]] == 't':
-      labels[i] = 1.0
-    else:
-      if random.random() > subsample_factor:
-        keep = False
-
-    for value, name in zip(values, header_list):
-      assert name in VARIABLE_TYPES_DICT, ('Header %s not found in '
-                                           'VARIABLE_TYPES_DICT') % name
-      vtype = VARIABLE_TYPES_DICT[name]
-      if vtype == 'C':
-        value_dict = value_indices[name]
-        if value in value_dict:
-          offset = value_dict[value]
-        else:
-          offset = len(value_dict)
-          value_dict[value] = offset
-          value_indices[name] = value_dict
-        index = variable_start_indices[name] + offset
-        if value_ranges[index] is None:
-          value_ranges[index] = {'metric': name, 'value': value}
-        if keep:
-          data[i, index] = 1.0
-      elif vtype == 'N':
-        try:
-          value = float(min(MAXVAL, max(MINVAL, float(value))))
-        except:
-          if value:
-            print 'WARNING: treating feature %s with value %s as 0' % (name,
-                                                                       value)
-          value = 0.0
-        index = variable_start_indices[name]
-        if value_ranges[index] is None:
-          value_ranges[index] = {'metric': name, 'min': value, 'max': value}
-        if value < value_ranges[index]['min']:
-          value_ranges[index]['min'] = value
-        if value > value_ranges[index]['max']:
-          value_ranges[index]['max'] = value
-        if keep:
-          data[i, index] = value
-      elif vtype == 'S':
+      render = values[header_to_position['median_timers_renderstart']].strip()
+      if not len(render) or float(render) <= 0:
         continue
+
+      keep = True
+
+      if values[header_to_position[label]] == 't':
+        labels[i] = 1.0
       else:
-        raise Exception('Unknown variable type ' + vtype)
-      if i > nb_kept_samples:
-        print 'collected', nb_kept_samples, 'total samples.'
-        break
-    if keep:
-      i += 1
-  f.close()
+        if random.random() > subsample_factor:
+          keep = False
+
+      for value, name in zip(values, header_list):
+        assert name in VARIABLE_TYPES_DICT, ('Header %s not found in '
+                                             'VARIABLE_TYPES_DICT') % name
+        vtype = VARIABLE_TYPES_DICT[name]
+        if vtype == 'C':
+          value_dict = value_indices[name]
+          if value in value_dict:
+            offset = value_dict[value]
+          else:
+            offset = len(value_dict)
+            value_dict[value] = offset
+            value_indices[name] = value_dict
+          index = variable_start_indices[name] + offset
+          if value_ranges[index] is None:
+            value_ranges[index] = {'metric': name, 'value': value}
+          if keep:
+            data[i, index] = 1.0
+        elif vtype == 'N':
+          try:
+            value = float(min(MAXVAL, max(MINVAL, float(value))))
+          except:
+            if value:
+              print 'WARNING: treating feature %s with value %s as 0' % (name,
+                                                                         value)
+            value = 0.0
+          index = variable_start_indices[name]
+          if value_ranges[index] is None:
+            value_ranges[index] = {'metric': name, 'min': value, 'max': value}
+          if value < value_ranges[index]['min']:
+            value_ranges[index]['min'] = value
+          if value > value_ranges[index]['max']:
+            value_ranges[index]['max'] = value
+          if keep:
+            data[i, index] = value
+        elif vtype == 'S':
+          continue
+        else:
+          raise Exception('Unknown variable type ' + vtype)
+        if i > nb_kept_samples:
+          print 'collected', nb_kept_samples, 'total samples.'
+          break
+      if keep:
+        i += 1
 
   print 'y.shape:', labels.shape
   print 'y.mean:', labels.mean()

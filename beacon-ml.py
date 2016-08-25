@@ -32,7 +32,7 @@ import random
 import sys
 
 RUN_CHECKS = False
-REGEN_DATA = False
+REGEN_DATA = True
 # one of deep_model, logistic_regression, random_forest, None
 #TRAIN = 'deep_model'
 TRAIN = 'random_forest'
@@ -75,11 +75,14 @@ def main():
     print 'Re-generating data'
     sys.stdout.flush()
     data, labels, ranges = subsample_and_vectorize_data(fname, LABEL, PRETTY_PRINT_LABEL)
-    np.save(open(VECTOR_DATA_PATH, 'w'), data)
+    with open(VECTOR_DATA_PATH, 'wb') as file:
+      np.save(file, data)
     data = None
-    np.save(open(VECTOR_LABELS_PATH, 'w'), labels)
+    with open(VECTOR_LABELS_PATH, 'wb') as file:
+      np.save(file, labels)
     labels = None
-    json.dump(ranges, open(VALUE_RANGES_PATH, 'w'), indent=4)
+    with open(VALUE_RANGES_PATH, 'wb') as file:
+      json.dump(ranges, file, indent=4)
     ranges = None
 
   # finally train the model
@@ -100,11 +103,10 @@ def main():
     print 'Training random forest'
     sys.stdout.flush()
     top_features = train_random_forest()
-    f = open(IMPORTANCES_CSV, 'w')
-    f.write('feature,importance\n')
-    for feature, importance in top_features:
-      f.write('%s,%.4f\n' % (feature, importance))
-    f.close()
+    with open(IMPORTANCES_CSV, 'wb') as f:
+      f.write('feature,importance\n')
+      for feature, importance in top_features:
+        f.write('%s,%.4f\n' % (feature, importance))
 
 
 def checks():
@@ -126,10 +128,12 @@ def prepare_data():
   """
   print 'Loading VECTOR_DATA_PATH'
   sys.stdout.flush()
-  data = np.load(open(VECTOR_DATA_PATH))
+  with open(VECTOR_DATA_PATH, 'rb') as file:
+    data = np.load(file)
   print 'Loading VECTOR_LABELS_PATH'
   sys.stdout.flush()
-  labels = np.load(open(VECTOR_LABELS_PATH))
+  with open(VECTOR_LABELS_PATH, 'rb') as file:
+    labels = np.load(file)
   print 'Loading done'
   sys.stdout.flush()
 
@@ -243,8 +247,8 @@ def train_random_forest():
   print 'acc:', acc
   print clf.feature_importances_
 
-  f = open('features_names.json')
-  features_names = json.load(f)
+  with open('features_names.json', 'rb') as f:
+    features_names = json.load(f)
 
   print 'feature importances:'
   assert len(features_names) == len(clf.feature_importances_)
@@ -270,9 +274,11 @@ def test_deep_model():
   print 'Testing deep model'
   scaler = StandardScaler()
   print 'Loading data set'
-  original_data = np.load(open(VECTOR_DATA_PATH))
+  with open(VECTOR_DATA_PATH, 'rb') as file:
+    original_data = np.load(file)
   scaler.fit(original_data)
-  model_json = open(MODEL_PATH + '.json', 'r').read()
+  with open(MODEL_PATH + '.json', 'rb') as file:
+    model_json = file.read()
   model = model_from_json(model_json)
   model.load_weights(MODEL_PATH + '.h5')
   model.compile(optimizer='adagrad',
