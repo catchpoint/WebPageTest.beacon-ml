@@ -34,7 +34,7 @@ REGEN_DATA = False
 #LABEL = 'is_converted'
 #PRETTY_PRINT_LABEL = 'conversion'
 LABEL = 'is_bounce'
-PRETTY_PRINT_LABEL = 'bounce_render'
+PRETTY_PRINT_LABEL = 'bounce'
 
 # Including bounce rate data
 DATA_DIR = './data'
@@ -51,10 +51,13 @@ DATA_CSV = RESULTS_DIR + '/' + PRETTY_PRINT_LABEL + '_' + TRAIN + '_data_'
 
 EPOCH_COUNT = 100
 
+# Features to include as a starting point before iterating on all other available features
 starting_features = []
+
+#Features to plot the probability distribution for.  If this is set then only these features will
+# be evaluated (and it probably only makes sense if starting_features is empty).
 #test_features = ['median_timers_domready','session_avg_loadtime','median_timers_render']
-test_features = ['median_timers_renderstart']
-#test_features = []
+test_features = []
 
 
 def main():
@@ -62,7 +65,10 @@ def main():
     os.makedirs(RESULTS_DIR)
 
   # then run to to generate the vectorized data from the raw dump (already done)
-  if REGEN_DATA:
+  if REGEN_DATA or \
+      not os.path.exists(VECTOR_DATA_PATH) or \
+      not os.path.exists(VECTOR_LABELS_PATH) or \
+      not os.path.exists(VALUE_RANGES_PATH):
     print 'Re-generating data'
     csv_fname = os.path.join(DATA_DIR, CSV_FNAME)
     sys.stdout.flush()
